@@ -58,7 +58,7 @@ const request = url =>
 
 registerMicroApps(
   [
-    { name: 'react app', entry: '//localhost:7100', render, activeRule: genActiveRule('/react') },
+    { name: 'angular app', entry: '//localhost:3000', render, activeRule: genActiveRule('/angular') },
     { name: 'react15 app', entry: '//localhost:7102', render, activeRule: genActiveRule('/15react15') },
     { name: 'vue app', entry: '//localhost:7101', render, activeRule: genActiveRule('/vue') },
   ],
@@ -84,7 +84,7 @@ registerMicroApps(
   },
 );
 
-setDefaultMountApp('/react');
+setDefaultMountApp('/angular');
 runAfterFirstMounted(() => console.info('first app mounted'));
 
 start({ prefetch: true, fetch: request });
