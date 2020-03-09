@@ -3,9 +3,9 @@
  * @since 2019-04-25
  */
 
-import { importEntry } from 'import-html-entry';
+import { importEntry } from '@ali/fork-import-html-entry';
 import { isFunction } from 'lodash';
-import { registerApplication, start as startSpa } from 'single-spa';
+import { registerApplication, start as startSpa, unloadApplication } from 'single-spa';
 import { Fetch, RegistrableApp, StartOpts } from './interfaces';
 import { prefetchAfterFirstMounted, prefetchAll } from './prefetch';
 import { genSandbox } from './sandbox';
@@ -22,6 +22,7 @@ export type LifeCycles<T extends object> = {
 
 type RegisterMicroAppsOpts = {
   fetch?: Fetch;
+  htmlFetch?: Fetch;
 };
 
 let microApps: RegistrableApp[] = [];
@@ -76,7 +77,7 @@ export function registerMicroApps<T extends object = {}>(
   window.__POWERED_BY_QIANKUN__ = true;
 
   const { beforeUnmount = [], afterUnmount = [], afterMount = [], beforeMount = [], beforeLoad = [] } = lifeCycles;
-  const { fetch } = opts;
+  const { fetch, htmlFetch } = opts;
   microApps = [...microApps, ...apps];
 
   let prevAppUnmountedDeferred: Deferred<void>;
@@ -91,7 +92,7 @@ export function registerMicroApps<T extends object = {}>(
         await frameworkStartedDefer.promise;
 
         // 获取入口 html 模板及脚本加载器
-        const { template: appContent, execScripts, assetPublicPath } = await importEntry(entry, { fetch });
+        const { template: appContent, execScripts, assetPublicPath } = await importEntry(entry, { fetch, htmlFetch });
 
         // as single-spa load and bootstrap new app parallel with other apps unmounting
         // (see https://github.com/CanopyTax/single-spa/blob/master/src/navigation/reroute.js#L74)
@@ -120,7 +121,11 @@ export function registerMicroApps<T extends object = {}>(
 
         if (!isFunction(bootstrapApp) || !isFunction(mount) || !isFunction(unmount)) {
           // fallback to global variable who named with ${appName} while module exports not found
-          const globalVariableExports = (window as any)[appName] || {};
+          let globalVariableExports = (window as any)[appName] || {};
+          // if globalExport is Promise,then get the resolve value
+          if (globalVariableExports instanceof Promise) {
+            globalVariableExports = await globalVariableExports;
+          }
           bootstrapApp = globalVariableExports.bootstrap;
           // eslint-disable-next-line prefer-destructuring
           mount = globalVariableExports.mount;
@@ -186,6 +191,7 @@ export function registerMicroApps<T extends object = {}>(
 
 export * from './effects';
 export * from './interfaces';
+export { unloadApplication };
 
 export function start(opts: StartOpts = {}) {
   const { prefetch = true, jsSandbox = true, singular = true, fetch } = opts;

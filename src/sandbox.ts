@@ -4,7 +4,7 @@
  */
 import { hijackAtBootstrapping, hijackAtMounting } from './hijackers';
 import { Freer, Rebuilder } from './interfaces';
-import { isConstructable } from './utils';
+// import { isConstructable } from './utils';
 
 function isPropConfigurable(target: object, prop: PropertyKey) {
   const descriptor = Object.getOwnPropertyDescriptor(target, prop);
@@ -50,14 +50,14 @@ export function genSandbox(appName: string, assetPublicPath: string) {
 
   let sandboxRunning = true;
 
-  const boundValueSymbol = Symbol('bound value');
+  // const boundValueSymbol = Symbol('bound value');
 
-  const rawWindow = window;
+  // const rawWindow = window;
   // fake proxy target with a empty object
   // see the invariants section of Proxy https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/handler/get
-  const fakeWindow = Object.create(null) as Window;
+  // const fakeWindow = Object.create(null) as Window;
 
-  const sandbox: WindowProxy = new Proxy(fakeWindow, {
+  const sandbox: WindowProxy = window; /* new Proxy(fakeWindow, {
     set(_: Window, p: PropertyKey, value: any): boolean {
       if (sandboxRunning) {
         if (!rawWindow.hasOwnProperty(p)) {
@@ -92,10 +92,10 @@ export function genSandbox(appName: string, assetPublicPath: string) {
       }
 
       const value = (rawWindow as any)[p];
-      /*
+      /!*
       仅绑定 !isConstructable && isCallable 的函数对象，如 window.console、window.atob 这类。目前没有完美的检测方式，这里通过 prototype 中是否还有可枚举的拓展方法的方式来判断
       @warning 这里不要随意替换成别的判断方式，因为可能触发一些 edge case（比如在 lodash.isFunction 在 iframe 上下文中可能由于调用了 top window 对象触发的安全异常）
-       */
+       *!/
       if (typeof value === 'function' && !isConstructable(value)) {
         if (value[boundValueSymbol]) {
           return value[boundValueSymbol];
@@ -116,7 +116,7 @@ export function genSandbox(appName: string, assetPublicPath: string) {
     has(_: Window, p: string | number | symbol): boolean {
       return p in rawWindow;
     },
-  });
+  }); */
 
   // some side effect could be be invoked while bootstrapping, such as dynamic stylesheet injection with style-loader, especially during the development phase
   const bootstrappingFreers = hijackAtBootstrapping(appName, assetPublicPath, sandbox);

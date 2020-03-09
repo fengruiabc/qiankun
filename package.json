@@ -1,7 +1,7 @@
 {
-  "name": "qiankun",
-  "version": "1.3.10-1",
-  "description": "An completed implementation of Micro Frontends",
+  "name": "@ali/aliyun-micro-fork",
+  "version": "1.0.10",
+  "description": "fork from qiankun",
   "keywords": [
     "micro frontend",
     "microfrontend",
@@ -37,7 +37,6 @@
     "es",
     "lib"
   ],
-  "author": "Kuitos",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/kuitos/qiankun/issues"
@@ -45,8 +44,9 @@
   "homepage": "https://github.com/kuitos/qiankun#readme",
   "dependencies": {
     "@babel/runtime": "^7.5.5",
-    "import-html-entry": "^1.3.7",
+    "@ali/fork-import-html-entry": "^1.0.0",
     "lodash": "^4.17.11",
+    "proxy-polyfill": "^0.3.1",
     "single-spa": "^4.3.4",
     "tslib": "^1.10.0"
   },
@@ -79,5 +79,8 @@
       "yarn lint:fix",
       "git add"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://registry.npm.alibaba-inc.com"
   }
 }

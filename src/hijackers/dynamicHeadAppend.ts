@@ -2,7 +2,7 @@
  * @author Kuitos
  * @since 2019-10-21
  */
-import { execScripts } from 'import-html-entry';
+import { execScripts } from '@ali/fork-import-html-entry';
 import { isFunction } from 'lodash';
 import { checkActivityFunctions } from 'single-spa';
 import { Freer } from '../interfaces';
@@ -42,76 +42,79 @@ function setCachedRules(element: HTMLStyleElement, cssRules: CSSRuleList) {
 
 export default function hijack(appName: string, proxy: Window): Freer {
   const dynamicStyleSheetElements: Array<HTMLLinkElement | HTMLStyleElement> = [];
+  if (window.__POWERED_BY_QIANKUN__ && (window as any).useAppendHack) {
+    HTMLHeadElement.prototype.appendChild = function appendChild<T extends Node>(this: any, newChild: T) {
+      const element = newChild as any;
+      if (element.tagName) {
+        switch (element.tagName) {
+          case LINK_TAG_NAME:
+          case STYLE_TAG_NAME: {
+            const stylesheetElement: HTMLLinkElement | HTMLStyleElement = newChild as any;
 
-  HTMLHeadElement.prototype.appendChild = function appendChild<T extends Node>(this: any, newChild: T) {
-    const element = newChild as any;
-    if (element.tagName) {
-      switch (element.tagName) {
-        case LINK_TAG_NAME:
-        case STYLE_TAG_NAME: {
-          const stylesheetElement: HTMLLinkElement | HTMLStyleElement = newChild as any;
+            // check if the currently specified application is active
+            // While we switch page from qiankun app to a normal react routing page, the normal one may load stylesheet dynamically while page rendering,
+            // but the url change listener must to wait until the current call stack is flushed.
+            // This scenario may cause we record the stylesheet from react routing page dynamic injection,
+            // and remove them after the url change triggered and qiankun app is unmouting
+            // see https://github.com/ReactTraining/history/blob/master/modules/createHashHistory.js#L222-L230
+            const activated = checkActivityFunctions(window.location).some(name => name === appName);
+            // only hijack dynamic style injection when app activated
+            if (activated) {
+              dynamicStyleSheetElements.push(stylesheetElement);
+            }
 
-          // check if the currently specified application is active
-          // While we switch page from qiankun app to a normal react routing page, the normal one may load stylesheet dynamically while page rendering,
-          // but the url change listener must to wait until the current call stack is flushed.
-          // This scenario may cause we record the stylesheet from react routing page dynamic injection,
-          // and remove them after the url change triggered and qiankun app is unmouting
-          // see https://github.com/ReactTraining/history/blob/master/modules/createHashHistory.js#L222-L230
-          const activated = checkActivityFunctions(window.location).some(name => name === appName);
-          // only hijack dynamic style injection when app activated
-          if (activated) {
-            dynamicStyleSheetElements.push(stylesheetElement);
+            break;
           }
 
-          break;
-        }
+          case SCRIPT_TAG_NAME: {
+            const { src, text } = element as HTMLScriptElement;
 
-        case SCRIPT_TAG_NAME: {
-          const { src, text } = element as HTMLScriptElement;
+            if (src) {
+              execScripts(null, [src], proxy).then(
+                () => {
+                  // we need to invoke the onload event manually to notify the event listener that the script was completed
+                  // here are the two typical ways of dynamic script loading
+                  // 1. element.onload callback way, which webpack and loadjs used, see https://github.com/muicss/loadjs/blob/master/src/loadjs.js#L138
+                  // 2. addEventListener way, which toast-loader used, see https://github.com/pyrsmk/toast/blob/master/src/Toast.ts#L64
+                  const loadEvent = new CustomEvent('load');
+                  if (isFunction(element.onload)) {
+                    element.onload(loadEvent);
+                  } else {
+                    element.dispatchEvent(loadEvent);
+                  }
+                },
+                () => {
+                  const errorEvent = new CustomEvent('error');
+                  if (isFunction(element.onerror)) {
+                    element.onerror(errorEvent);
+                  } else {
+                    element.dispatchEvent(errorEvent);
+                  }
+                },
+              );
 
-          if (src) {
-            execScripts(null, [src], proxy).then(
-              () => {
-                // we need to invoke the onload event manually to notify the event listener that the script was completed
-                // here are the two typical ways of dynamic script loading
-                // 1. element.onload callback way, which webpack and loadjs used, see https://github.com/muicss/loadjs/blob/master/src/loadjs.js#L138
-                // 2. addEventListener way, which toast-loader used, see https://github.com/pyrsmk/toast/blob/master/src/Toast.ts#L64
-                const loadEvent = new CustomEvent('load');
-                if (isFunction(element.onload)) {
-                  element.onload(loadEvent);
-                } else {
-                  element.dispatchEvent(loadEvent);
-                }
-              },
-              () => {
-                const errorEvent = new CustomEvent('error');
-                if (isFunction(element.onerror)) {
-                  element.onerror(errorEvent);
-                } else {
-                  element.dispatchEvent(errorEvent);
-                }
-              },
+              const dynamicScriptCommentElement = document.createComment(`dynamic script ${src} replaced by qiankun`);
+              return rawHtmlAppendChild.call(this, dynamicScriptCommentElement) as T;
+            }
+
+            execScripts(null, [`<script>${text}</script>`], proxy).then(element.onload, element.onerror);
+            const dynamicInlineScriptCommentElement = document.createComment(
+              'dynamic inline script replaced by qiankun',
             );
-
-            const dynamicScriptCommentElement = document.createComment(`dynamic script ${src} replaced by qiankun`);
-            return rawHtmlAppendChild.call(this, dynamicScriptCommentElement) as T;
+            return rawHtmlAppendChild.call(this, dynamicInlineScriptCommentElement) as T;
           }
 
-          execScripts(null, [`<script>${text}</script>`], proxy).then(element.onload, element.onerror);
-          const dynamicInlineScriptCommentElement = document.createComment('dynamic inline script replaced by qiankun');
-          return rawHtmlAppendChild.call(this, dynamicInlineScriptCommentElement) as T;
+          default:
+            break;
         }
-
-        default:
-          break;
       }
-    }
 
-    return rawHtmlAppendChild.call(this, element) as T;
-  };
+      return rawHtmlAppendChild.call(this, element) as T;
+    };
+  }
 
   return function free() {
-    HTMLHeadElement.prototype.appendChild = rawHtmlAppendChild;
+    // HTMLHeadElement.prototype.appendChild = rawHtmlAppendChild;
     dynamicStyleSheetElements.forEach(stylesheetElement => {
       // the dynamic injected stylesheet may had been removed by itself while unmounting
       if (document.head.contains(stylesheetElement)) {

@@ -3,7 +3,7 @@
  * @since 2019-02-26
  */
 
-import { Entry, importEntry } from 'import-html-entry';
+import { Entry, importEntry } from '@ali/fork-import-html-entry';
 import { noop } from 'lodash';
 import { getMountedApps } from 'single-spa';
 import { Fetch, RegistrableApp } from './interfaces';
